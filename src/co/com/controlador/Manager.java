@@ -20,7 +20,7 @@ public class Manager extends Thread {
     // metodo para poner el boolean a false.
     public String detenElHilo() {
         continuar = false;
-        return "HH:" + nuHora + " mm:" + nuMin + " ss:" + nuSeg;
+        return nuHora + ":" + nuMin + ":" + nuSeg;
     }
 
     // Metodo del hilo

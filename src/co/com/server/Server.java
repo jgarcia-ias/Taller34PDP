@@ -2,10 +2,10 @@ package co.com.server;
 
 import co.com.controlador.Controlador;
 import java.io.IOException;
-import static java.lang.Thread.yield;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -37,14 +37,14 @@ public class Server {
                 entrada = new DatagramPacket(datoEntrada, datoEntrada.length);
                 conexion.receive(entrada);
                 mensaje = new String(entrada.getData(), 0, entrada.getLength());
-                
-                
-                
+
+                System.out.println("Mensaje: " + mensaje);
                 Controlador controlador = new Controlador();
-                long respuesta = controlador.controller(mensaje);
+                Map<String, Object> respuesta = controlador.receiveMessage(mensaje);
                 
-                
-                datoSalida = (respuesta+"").getBytes();
+                String clientes =  controlador.getClientToMap(respuesta);
+
+                datoSalida = (clientes).getBytes();
 
                 salida = new DatagramPacket(datoSalida, datoSalida.length, entrada.getAddress(), entrada.getPort());
                 conexion.send(salida);

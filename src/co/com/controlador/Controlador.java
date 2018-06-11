@@ -12,7 +12,9 @@ import java.sql.SQLException;
 import co.com.entidad.*;
 import co.com.util.Conexion;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -24,6 +26,138 @@ public class Controlador {
     private final String ASESOR = "ASESOR";
     private final String LLAMADA = "LLAMADA";
     private final String CLIENTE = "CLIENTE";
+
+    public Map<String, Object> receiveMessage(String message) {
+        Map<String, Object> response = new HashMap<String, Object>();
+        Map<String, Object> valores = new HashMap<String, Object>();
+        Cliente cliente = null;
+        String[] parts = message.split(",");
+        try {
+            if (null != parts[0]) {
+                switch (parts[0]) {
+                    case "autenticar":
+                        System.out.println("autenticar");
+                        String id_asesor = parts[1];
+                        String password = parts[2];
+                        boolean validate = authentication(id_asesor, password);
+                        if (validate) {
+                            cliente = getClientNotAdviced();
+                            valores.put("authentication", "True");
+                            valores.put("cliente", cliente);
+                        } else {
+                            valores.put("authentication", "False");
+                        }
+                        response.put("rAutenticar", valores);
+                        break;
+                    case "llamar":
+                        System.out.println("llamar");
+                        Manager m = new Manager();
+                        long ThreadID = 0;
+                        m.start();
+                        ThreadID = m.getId();
+                        valores.put("ThreadID", ThreadID);
+                        response.put("rLlamar", valores);
+                        break;
+                    case "colgar":
+                        System.out.println("colgar");
+                        String idAsesor = parts[1];
+                        String telefonoCliente = parts[2];
+                        String categoriaCliente = parts[3];
+                        String ThreadIDMessage = parts[4];
+                        Set<Thread> setOfThread = Thread.getAllStackTraces().keySet();
+                        for (Thread thread : setOfThread) {
+                            if (thread.getId() == Long.parseLong(ThreadIDMessage)) {
+                                Manager x = (Manager) thread;
+                                String tiempo = x.detenElHilo();
+                                System.out.println("ENCONTRADO " + tiempo);
+                                thread.stop();
+                                Cliente clientSaved = getClienteXNumberPhoneClient(telefonoCliente);
+                                Asesor asesor = getAsesor(idAsesor);
+
+                                String costoLlamada = calcularCostoLlamada(categoriaCliente, tiempo) + "";
+                                saveCalls(clientSaved, asesor, tiempo, costoLlamada);
+                                //modificar registro de cliente a llamado
+                                cliente = getClientNotAdviced();
+                                valores.put("costo", costoLlamada);
+                                valores.put("cliente", cliente);
+                                response.put("rColgar", valores);
+                            }
+                        }
+                        System.out.println("colgando");
+                        break;
+                    default:
+                        break;
+                }
+            }
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+
+        return response;
+    }
+    
+    public int calcularCostoLlamada(String categoria, String tiempo){
+        String[] parts = tiempo.split(":");
+        int horas = Integer.parseInt(parts[0]);
+        int minutos = Integer.parseInt(parts[1]);
+        int segundos = Integer.parseInt(parts[2]);
+        int h = horas*3600;
+        int m = minutos*60;
+        int s = h+m+segundos;
+        int msxll = 0;
+        int vpps = 0;
+        int valor = 0;
+        
+        if (null != categoria)switch (categoria) {
+            case "1":
+                msxll = 10;
+                vpps = 10;
+                valor = (s/msxll)*vpps;
+                break;
+            case "2":
+                msxll = 15;
+                vpps = 15;
+                valor = (s/msxll)*vpps;
+                break;
+            case "3":
+                msxll = 20;
+                vpps = 20;
+                valor = (s/msxll)*vpps;
+                break;
+            default:
+                break;
+        }
+        return valor;
+    }
+
+    public String getClientToMap(Map<String, Object> input) {
+        String response = "";
+        if (null != input.get("rAutenticar")) {
+            Map<String, Object> valores = new HashMap<>();
+            valores = (Map<String, Object>) input.get("rAutenticar");
+            Cliente cliente = (Cliente) valores.get("cliente");
+            String authentication = (String) valores.get("authentication");
+            response += "rAutenticar," + cliente.getNombre() + " " + cliente.getApellido() + ","
+                    + cliente.getTelefono() + ","
+                    + cliente.getCategoria() + ","
+                    + authentication;
+            return response;
+        } else if (null != input.get("rLlamar")) {
+            Map<String, Object> valores = new HashMap<>();
+            valores = (Map<String, Object>) input.get("rLlamar");
+            response += "rLlamar," + valores.get("ThreadID");
+
+        } else if (null != input.get("rColgar")) {
+            Map<String, Object> valores = new HashMap<>();
+            valores = (Map<String, Object>) input.get("rColgar");
+            Cliente cliente = (Cliente) valores.get("cliente");
+            response += "rColgar," + valores.get("costo") + ","
+                    + cliente.getNombre() + " " + cliente.getApellido() + ","
+                    + cliente.getTelefono() + ","
+                    + cliente.getCategoria();
+        }
+        return response;
+    }
 
     public long controller(String clientMessage) {
         String[] parts = clientMessage.split(",");
@@ -51,7 +185,8 @@ public class Controlador {
                             thread.stop();
                             Cliente cliente = getClienteXNumberPhoneClient(numeroCliente);
                             Asesor asesor = getAsesor(asesor_id);
-                            saveCalls(cliente, asesor, tiempo);
+                            //saveCalls(cliente, asesor, tiempo);
+                            
                         }
                     }
 
@@ -75,12 +210,11 @@ public class Controlador {
             while (resultado.next()) {
                 Asesor asesor = new Asesor();
                 Cliente cliente = new Cliente();
-                Llamada llamada = new Llamada();
 
                 asesor.setIdAsesor(resultado.getString("ASESOR_LLAMADA"));
                 cliente.setIdCliente(resultado.getString("CLIENTE_LLAMADA"));
 
-                llamada = new Llamada(resultado.getString("ID_LLAMADA"), asesor, cliente, resultado.getString("TELEFONO_LLAMADA"), resultado.getString("TIEMPO_LLAMADA"));
+                Llamada llamada = new Llamada(resultado.getString("ID_LLAMADA"), asesor, cliente, resultado.getString("TELEFONO_LLAMADA"), resultado.getString("TIEMPO_LLAMADA"), resultado.getString("VALOR_LLAMADA"));
                 lLlamada.add(llamada);
             }
         } catch (SQLException ex) {
@@ -107,25 +241,24 @@ public class Controlador {
         return contrasena.equals(asesor.getContrasena());
     }
 
-    public List<Cliente> getClientsNotAdviced() throws SQLException, ClassNotFoundException {
+    public Cliente getClientNotAdviced() throws SQLException, ClassNotFoundException {
         Connection conexion = Conexion.obtener();
-        List lClientes = new ArrayList();
         Cliente cliente = null;
         try {
-            PreparedStatement consulta = conexion.prepareStatement("SELECT * FROM  " + this.CLIENTE + " WHERE ASESORADO = ? AND LIMIT 0, 5");
+            PreparedStatement consulta = conexion.prepareStatement("SELECT * FROM  " + this.CLIENTE + " WHERE ASESORADO = ? AND rownum = 1");
             consulta.setInt(1, 0);
             ResultSet resultado = consulta.executeQuery();
             while (resultado.next()) {
+                System.out.println("Resultado: " + resultado.getString("ID_CLIENTE"));
                 cliente = new Cliente(resultado.getString("ID_CLIENTE"), resultado.getString("NOMBRE_CLIENTE"), resultado.getString("APELLIDO_CLIENTE"), resultado.getString("TELEFONO_CLIENTE"), resultado.getString("CATEGORIA"), resultado.getInt("ASESORADO"));
-                lClientes.add(cliente);
             }
         } catch (SQLException ex) {
             throw new SQLException(ex);
         }
-        return lClientes;
+        return cliente;
     }
 
-    public void saveCalls(Cliente cliente, Asesor asesor, String tiempoLlamada) throws SQLException, ClassNotFoundException {
+    public void saveCalls(Cliente cliente, Asesor asesor, String tiempoLlamada, String valorLlamada) throws SQLException, ClassNotFoundException {
         Connection conexion = Conexion.obtener();
         System.out.println("Insert ( " + String.valueOf((int) (Math.random() * 9999999) + 1)
                 + " , " + asesor.getIdAsesor()
@@ -133,12 +266,13 @@ public class Controlador {
                 + " , " + cliente.getTelefono()
                 + " , " + tiempoLlamada + " )");
         try {
-            PreparedStatement query = conexion.prepareStatement("INSERT INTO " + this.LLAMADA + " (ID_LLAMADA, ASESOR_LLAMADA, CLIENTE_LLAMADA, TELEFONO_LLAMADA, TIEMPO_LLAMADA) VALUES (?,?,?,?,?)");
+            PreparedStatement query = conexion.prepareStatement("INSERT INTO " + this.LLAMADA + " (ID_LLAMADA, ASESOR_LLAMADA, CLIENTE_LLAMADA, TELEFONO_LLAMADA, TIEMPO_LLAMADA, VALOR_LLAMADA) VALUES (?,?,?,?,?,?)");
             query.setString(1, String.valueOf((int) (Math.random() * 9999999) + 1));
             query.setString(2, asesor.getIdAsesor());
             query.setString(3, cliente.getIdCliente());
             query.setString(4, cliente.getTelefono());
             query.setString(5, tiempoLlamada);
+            query.setString(6, valorLlamada);
             query.executeQuery();
         } catch (SQLException ex) {
             throw new SQLException(ex);

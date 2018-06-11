@@ -15,13 +15,15 @@ public class Llamada {
     Cliente cliente;
     String telefono;
     String tiempo;
+    String valor;
 
-    public Llamada(String idLlamada, Asesor asesor, Cliente cliente, String telefono, String tiempo) {
+    public Llamada(String idLlamada, Asesor asesor, Cliente cliente, String telefono, String tiempo, String valor) {
         this.idLlamada = idLlamada;
         this.asesor = asesor;
         this.cliente = cliente;
         this.telefono = telefono;
         this.tiempo = tiempo;
+        this.valor = valor;
     }
 
     public Llamada() {
@@ -68,6 +70,13 @@ public class Llamada {
         this.tiempo = tiempo;
     }
 
+    public String getValor() {
+        return valor;
+    }
+
+    public void setValor(String valor) {
+        this.valor = valor;
+    }
     
     
     
