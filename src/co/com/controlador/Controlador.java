@@ -76,7 +76,7 @@ public class Controlador {
 
                                 String costoLlamada = calcularCostoLlamada(categoriaCliente, tiempo) + "";
                                 saveCalls(clientSaved, asesor, tiempo, costoLlamada);
-                                //modificar registro de cliente a llamado
+                                updateCliente(clientSaved);
                                 cliente = getClientNotAdviced();
                                 valores.put("costo", costoLlamada);
                                 valores.put("cliente", cliente);
@@ -95,37 +95,39 @@ public class Controlador {
 
         return response;
     }
-    
-    public int calcularCostoLlamada(String categoria, String tiempo){
+
+    public int calcularCostoLlamada(String categoria, String tiempo) {
         String[] parts = tiempo.split(":");
         int horas = Integer.parseInt(parts[0]);
         int minutos = Integer.parseInt(parts[1]);
         int segundos = Integer.parseInt(parts[2]);
-        int h = horas*3600;
-        int m = minutos*60;
-        int s = h+m+segundos;
+        int h = horas * 3600;
+        int m = minutos * 60;
+        int s = h + m + segundos;
         int msxll = 0;
         int vpps = 0;
         int valor = 0;
-        
-        if (null != categoria)switch (categoria) {
-            case "1":
-                msxll = 10;
-                vpps = 10;
-                valor = (s/msxll)*vpps;
-                break;
-            case "2":
-                msxll = 15;
-                vpps = 15;
-                valor = (s/msxll)*vpps;
-                break;
-            case "3":
-                msxll = 20;
-                vpps = 20;
-                valor = (s/msxll)*vpps;
-                break;
-            default:
-                break;
+
+        if (null != categoria) {
+            switch (categoria) {
+                case "1":
+                    msxll = 10;
+                    vpps = 10;
+                    valor = (s / msxll) * vpps;
+                    break;
+                case "2":
+                    msxll = 15;
+                    vpps = 15;
+                    valor = (s / msxll) * vpps;
+                    break;
+                case "3":
+                    msxll = 20;
+                    vpps = 20;
+                    valor = (s / msxll) * vpps;
+                    break;
+                default:
+                    break;
+            }
         }
         return valor;
     }
@@ -137,10 +139,14 @@ public class Controlador {
             valores = (Map<String, Object>) input.get("rAutenticar");
             Cliente cliente = (Cliente) valores.get("cliente");
             String authentication = (String) valores.get("authentication");
-            response += "rAutenticar," + cliente.getNombre() + " " + cliente.getApellido() + ","
-                    + cliente.getTelefono() + ","
-                    + cliente.getCategoria() + ","
-                    + authentication;
+            if ("True".equals(authentication)) {
+                response += "rAutenticar," + authentication + ","
+                        + cliente.getNombre() + " " + cliente.getApellido() + ","
+                        + cliente.getTelefono() + ","
+                        + cliente.getCategoria();
+            } else {
+                response += "rAutenticar," + authentication;
+            }
             return response;
         } else if (null != input.get("rLlamar")) {
             Map<String, Object> valores = new HashMap<>();
@@ -186,7 +192,7 @@ public class Controlador {
                             Cliente cliente = getClienteXNumberPhoneClient(numeroCliente);
                             Asesor asesor = getAsesor(asesor_id);
                             //saveCalls(cliente, asesor, tiempo);
-                            
+
                         }
                     }
 
@@ -238,7 +244,11 @@ public class Controlador {
         } catch (SQLException ex) {
             throw new SQLException(ex);
         }
-        return contrasena.equals(asesor.getContrasena());
+        boolean response = false;
+        if (null != asesor) {
+            response = true;
+        }
+        return response;
     }
 
     public Cliente getClientNotAdviced() throws SQLException, ClassNotFoundException {
@@ -309,6 +319,19 @@ public class Controlador {
             throw new SQLException(ex);
         }
         return asesor;
+    }
+
+    private void updateCliente(Cliente clientSaved) throws SQLException, ClassNotFoundException {
+        Connection conexion = Conexion.obtener();
+        System.out.println("Actualizando cliente" + clientSaved.getIdCliente());
+        try {
+            PreparedStatement query = conexion.prepareStatement("UPDATE " + this.CLIENTE + " SET ASESORADO = ? WHERE ID_CLIENTE = ?");
+            query.setInt(1, 1);
+            query.setString(2, clientSaved.getIdCliente());
+            query.executeQuery();
+        } catch (SQLException ex) {
+            throw new SQLException(ex);
+        }
     }
 
 }
