@@ -13,6 +13,7 @@ import co.com.entidad.*;
 import co.com.util.Conexion;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,6 +85,19 @@ public class Controlador {
                             }
                         }
                         System.out.println("colgando");
+                        break;
+                    case "RLL":
+                        String numero = parts[1];
+                        String asesor2 = parts[2];
+                        List<Llamada> lLlamada = getAllCallsReports(asesor2, numero);
+                        valores.put("lLlamada", lLlamada);
+                        response.put("rRLL", valores);
+                        break;
+                    case "RC":
+                        String asesor1 = parts[1];
+                        String totalCallPrice = getTotalCallPrice(asesor1);
+                        valores.put("totalCallPrice", totalCallPrice);
+                        response.put("rRC", valores);
                         break;
                     default:
                         break;
@@ -161,49 +175,28 @@ public class Controlador {
                     + cliente.getNombre() + " " + cliente.getApellido() + ","
                     + cliente.getTelefono() + ","
                     + cliente.getCategoria();
+        } else if (null != input.get("rRLL")) {
+            Map<String, Object> valores = new HashMap<>();
+            valores = (Map<String, Object>) input.get("rRLL");
+            List<Llamada> lLlamada = (List<Llamada>) valores.get("lLlamada");
+
+            Iterator<Llamada> it = lLlamada.iterator();
+            while (it.hasNext()) {
+                Llamada llamada = it.next();
+                response += " Asesor: " + llamada.getAsesor().getIdAsesor()+ " - "
+                        + " Cliente: " + llamada.getCliente().getIdCliente() + " - "
+                        + " Telefono Cliente: " + llamada.getTelefono() + " - "
+                        + " Tiempo Llamada: " + llamada.getTiempo() + " - "
+                        + " Valor Llamada: " + llamada.getValor() + " \n ";
+            }
+            response = "rRLL," + response;
+        } else if (null != input.get("rRC")) {
+            Map<String, Object> valores = new HashMap<>();
+            valores = (Map<String, Object>) input.get("rRC");
+            String totalCallPrice = (String) valores.get("totalCallPrice");
+            response += "rRC," + totalCallPrice;
         }
         return response;
-    }
-
-    public long controller(String clientMessage) {
-        String[] parts = clientMessage.split(",");
-        String asesor_id = parts[0];
-        String password = parts[1];
-        String numeroCliente = parts[2];
-        String operacion = parts[3];
-        String ThreadIDMessage = parts[4];
-
-        Manager m = new Manager();
-        long ThreadID = 0;
-
-        try {
-            if (authentication(asesor_id, password)) {
-                if ("1".equals(operacion)) {
-                    m.start();
-                    ThreadID = m.getId();
-                } else {
-                    Set<Thread> setOfThread = Thread.getAllStackTraces().keySet();
-                    for (Thread thread : setOfThread) {
-                        if (thread.getId() == Long.parseLong(ThreadIDMessage)) {
-                            Manager x = (Manager) thread;
-                            String tiempo = x.detenElHilo();
-                            System.out.println("ENCONTRADO " + tiempo);
-                            thread.stop();
-                            Cliente cliente = getClienteXNumberPhoneClient(numeroCliente);
-                            Asesor asesor = getAsesor(asesor_id);
-                            //saveCalls(cliente, asesor, tiempo);
-
-                        }
-                    }
-
-                }
-
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return ThreadID;
     }
 
     public List<Llamada> getAllCalls(String idAsesor) throws SQLException, ClassNotFoundException {
@@ -227,6 +220,46 @@ public class Controlador {
             throw new SQLException(ex);
         }
         return lLlamada;
+    }
+
+    public List<Llamada> getAllCallsReports(String idAsesor, String telefonoCliente) throws SQLException, ClassNotFoundException {
+        Connection conexion = Conexion.obtener();
+        List lLlamada = new ArrayList();
+        try {
+            PreparedStatement consulta = conexion.prepareStatement("SELECT * FROM  " + this.LLAMADA + " WHERE ASESOR_LLAMADA = ? AND TELEFONO_LLAMADA = ?");
+            consulta.setString(1, idAsesor);
+            consulta.setString(2, telefonoCliente);
+            ResultSet resultado = consulta.executeQuery();
+            while (resultado.next()) {
+              Asesor asesor = new Asesor(resultado.getString("ASESOR_LLAMADA"),"","","","","");
+                Cliente cliente = new Cliente(resultado.getString("CLIENTE_LLAMADA"),"","","","",0);
+                Llamada llamada = new Llamada(resultado.getString("ID_LLAMADA"), asesor, cliente, resultado.getString("TELEFONO_LLAMADA"), resultado.getString("TIEMPO_LLAMADA"), resultado.getString("VALOR_LLAMADA"));
+                lLlamada.add(llamada);
+            }
+        } catch (SQLException ex) {
+            throw new SQLException(ex);
+        }
+        return lLlamada;
+    }
+
+    public String getTotalCallPrice(String idAsesor) throws SQLException, ClassNotFoundException {
+        Connection conexion = Conexion.obtener();
+        List lLlamada = new ArrayList();
+        try {
+            PreparedStatement consulta = conexion.prepareStatement("SELECT * FROM  " + this.LLAMADA + " WHERE ASESOR_LLAMADA = ?");
+            consulta.setString(1, idAsesor);
+            ResultSet resultado = consulta.executeQuery();
+            while (resultado.next()) {
+                Asesor asesor = new Asesor(resultado.getString("ASESOR_LLAMADA"),"","","","","");
+                Cliente cliente = new Cliente(resultado.getString("CLIENTE_LLAMADA"),"","","","",0);
+                Llamada llamada = new Llamada(resultado.getString("ID_LLAMADA"), asesor, cliente, resultado.getString("TELEFONO_LLAMADA"), resultado.getString("TIEMPO_LLAMADA"), resultado.getString("VALOR_LLAMADA"));
+                lLlamada.add(llamada);
+            }
+        } catch (SQLException ex) {
+            throw new SQLException(ex);
+        }
+        String response = calculateValues(lLlamada);
+        return response;
     }
 
     public boolean authentication(String id, String contrasena) throws SQLException, ClassNotFoundException {
@@ -332,6 +365,17 @@ public class Controlador {
         } catch (SQLException ex) {
             throw new SQLException(ex);
         }
+    }
+
+    private String calculateValues(List<Llamada> lLlamada) {
+        Iterator<Llamada> it = lLlamada.iterator();
+        int response = 0;
+        while (it.hasNext()) {
+            Llamada llamada = it.next();
+            response += Integer.parseInt(llamada.getValor());
+        }
+        System.out.println("calculateValues " + response);
+        return String.valueOf(response);
     }
 
 }
